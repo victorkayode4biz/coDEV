@@ -1,0 +1,130 @@
+import bot from './assets/bot.svg';
+import user from './assets/user.svg';
+
+const form = document.querySelector('form');
+const chatContainer = document.querySelector('.chat_container');
+
+let loadInterval;
+
+function loader(element) {
+  element.textContent = '';
+
+  loadInterval = setInterval(() => {
+    element.textContent += '.';
+
+    if (element.textContent === '....') {
+      element.textContent = '';
+    }
+  }, 300);
+}
+
+function typeText(element, text) {
+  let index = 0;
+
+  let interval = setInterval(() => {
+    if (index < text.length) {
+      element.innerHTML += text.charAt(index);
+      index++;
+    } else {
+      clearInterval(interval);
+    }
+  }, 20);
+}
+
+function generateUniqueId() {
+  const timestamp = Date.now();
+  const randomNumber = Math.random();
+  const hexadecimalString = randomNumber.toString(16);
+
+  return `id-${timestamp}-${hexadecimalString}`;
+}
+
+function chatStripe(isAi, value, uniqueId) {
+  return `
+    <div class="wrapper ${isAi && 'ai'}">
+      <div class="chat">
+        <div class="profile">
+          <img src="${isAi ? bot : user}" alt="${isAi ? 'bot' : 'user'}" />
+        </div>
+        <div class="message" id=${uniqueId}>${value}</div>
+      </div>
+    </div>
+  `;
+}
+
+const handleSubmit = async (e) => {
+  e.preventDefault();
+
+  const data = new FormData(form);
+  const prompt = data.get('prompt');
+
+  if (prompt.startsWith('I want to learn')) {
+    // Your code here for when the prompt starts with "I want to learn"
+    // This could be anything you want, depending on what you want the program to do
+    console.log('User wants to learn something');
+  } else if (prompt.trim() === '') {
+    // If prompt is empty, don't submit
+    console.log('Prompt is empty');
+  } else {
+    // If the prompt doesn't start with "I want to learn," send a message asking what the user wants to learn
+    chatContainer.innerHTML += chatStripe(
+      true,
+      'What do you want to learn?',
+      generateUniqueId()
+    );
+
+    form.reset();
+
+    chatContainer.scrollTop = chatContainer.scrollHeight;
+    return;
+  }
+
+  // user's chatStripe
+  chatContainer.innerHTML += chatStripe(false, prompt, generateUniqueId());
+
+  form.reset();
+
+  // bot's chatStripe
+  const uniqueId = generateUniqueId();
+  chatContainer.innerHTML += chatStripe(true, '', uniqueId);
+
+  chatContainer.scrollTop = chatContainer.scrollHeight;
+
+  const messageDiv = document.getElementById(uniqueId);
+
+  loader(messageDiv);
+
+  //fetch data from server -> bot's response
+  const response = await fetch('http://localhost:5000', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      prompt: prompt,
+    }),
+  });
+
+  clearInterval(loadInterval);
+  messageDiv.innerHTML = '';
+
+  if (response.ok) {
+    const data = await response.json();
+    const parsedData = data.bot.trim();
+
+    console.log(parsedData);
+
+    typeText(messageDiv, parsedData);
+  } else {
+    const err = await response.text();
+
+    messageDiv.innerHTML = 'Something went wrong';
+  }
+};
+
+form.addEventListener('submit', handleSubmit);
+form.addEventListener('keyup', (e) => {
+  if (e.keyCode === 13) {
+    handleSubmit(e);
+  }
+});
